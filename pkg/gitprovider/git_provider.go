@@ -102,9 +102,6 @@ func (a *AbstractGitProvider) parseStaticGitContext(repoUrl string) (*StaticGitC
 	branchPath := strings.Join(parts[2:], "/")
 	if branchPath != "" {
 		repo.Path = &branchPath
-	} else {
-		defaultBranch := "main"
-		repo.Path = &defaultBranch
 	}
 
 	repo.Url = getCloneUrl(repo.Source, repo.Owner, repo.Name)
