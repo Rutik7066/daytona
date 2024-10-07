@@ -10,7 +10,6 @@
 <br>
 
 <div align="center">
-
 [![Documentation](https://img.shields.io/github/v/release/daytonaio/docs?label=Docs&color=23cc71)](https://www.daytona.io/docs)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue)](#license)
 [![Go Report Card](https://goreportcard.com/badge/github.com/daytonaio/daytona)](https://goreportcard.com/report/github.com/daytonaio/daytona)
