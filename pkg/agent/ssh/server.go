@@ -8,7 +8,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 
+	"github.com/UserExistsError/conpty"
 	"github.com/creack/pty"
 	"github.com/daytonaio/daytona/pkg/agent/ssh/config"
 	"github.com/gliderlabs/ssh"
@@ -75,13 +78,11 @@ func (s *Server) Start() error {
 	log.Printf("Starting ssh server on port %d...\n", config.SSH_PORT)
 	return sshServer.ListenAndServe()
 }
-
 func (s *Server) handlePty(session ssh.Session, ptyReq ssh.Pty, winCh <-chan ssh.Window) {
 	shell := s.getShell()
 	cmd := exec.Command(shell)
 
 	cmd.Dir = s.ProjectDir
-
 	if _, err := os.Stat(s.ProjectDir); os.IsNotExist(err) {
 		cmd.Dir = s.DefaultProjectDir
 	}
@@ -100,15 +101,44 @@ func (s *Server) handlePty(session ssh.Session, ptyReq ssh.Pty, winCh <-chan ssh
 	cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", ptyReq.Term))
 	cmd.Env = append(cmd.Env, os.Environ()...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SHELL=%s", shell))
-	f, err := pty.Start(cmd)
-	if err != nil {
-		log.Errorf("Unable to start command: %v", err)
-		return
+
+	var f io.ReadWriteCloser
+	var err error
+
+	if runtime.GOOS == "windows" {
+		// Use ConPTY for Windows
+		f, err = conpty.Start(shell)
+		if err != nil {
+			log.Errorf("Unable to start ConPTY: %v", err)
+			return
+		}
+	} else {
+		// Use creack/pty for Unix-like systems
+		f, err = pty.Start(cmd)
+		if err != nil {
+			log.Errorf("Unable to start PTY: %v", err)
+			return
+		}
 	}
+	defer f.Close()
 
 	go func() {
 		for win := range winCh {
-			SetPtySize(f, win)
+			if runtime.GOOS == "windows" {
+				// Adjust the ConPTY window size
+				if cpty, ok := f.(*conpty.ConPty); ok {
+					cpty.Resize(win.Width, win.Height)
+				} else {
+					log.Errorf("Unable to resize ConPTY")
+				}
+			} else {
+				// Adjust PTY size for Unix-like systems
+				if file, ok := f.(*os.File); ok {
+					SetPtySize(file, win)
+				} else {
+					log.Errorf("Unable to resize PTY")
+				}
+			}
 		}
 	}()
 	go func() {
@@ -161,7 +191,7 @@ func (s *Server) handleNonPty(session ssh.Session) {
 
 	err = cmd.Start()
 	if err != nil {
-		log.Errorf("Unable to start command: %v", err)
+		log.Errorf("Unable to start command: %v \nerror: %v\n", cmd.Args, err)
 		return
 	}
 	sigs := make(chan ssh.Signal, 1)
@@ -194,6 +224,36 @@ func (s *Server) handleNonPty(session ssh.Session) {
 }
 
 func (s *Server) getShell() string {
+	if runtime.GOOS == "windows" {
+		return "cmd.exe"
+	}
+
+	out, err := exec.Command("sh", "-c", "grep '^[^#]' /etc/shells").Output()
+	if err != nil {
+		return "sh"
+	}
+
+	if strings.Contains(string(out), "/usr/bin/zsh") {
+		return "/usr/bin/zsh"
+	}
+
+	if strings.Contains(string(out), "/bin/zsh") {
+		return "/bin/zsh"
+	}
+
+	if strings.Contains(string(out), "/usr/bin/bash") {
+		return "/usr/bin/bash"
+	}
+
+	if strings.Contains(string(out), "/bin/bash") {
+		return "/bin/bash"
+	}
+
+	shellEnv, shellSet := os.LookupEnv("SHELL")
+	if shellSet {
+		return shellEnv
+	}
+
 	return "sh"
 }
 

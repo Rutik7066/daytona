@@ -2,5 +2,6 @@
 DEV_WORKSPACES
 ./daytona
 .DS_Store
-main.exe
+
+./main.exe
 tmp
