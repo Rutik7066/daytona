@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/creack/pty"
 	"github.com/daytonaio/daytona/pkg/agent/ssh/config"
@@ -124,7 +123,7 @@ func (s *Server) handleNonPty(session ssh.Session) {
 		args = append([]string{"-c"}, session.RawCommand())
 	}
 
-	cmd := exec.Command("/bin/sh", args...)
+	cmd := exec.Command("sh", args...)
 
 	cmd.Env = append(cmd.Env, os.Environ()...)
 
@@ -195,33 +194,6 @@ func (s *Server) handleNonPty(session ssh.Session) {
 }
 
 func (s *Server) getShell() string {
-	out, err := exec.Command("sh", "-c", "grep '^[^#]' /etc/shells").Output()
-	if err != nil {
-		return "sh"
-	}
-
-	if strings.Contains(string(out), "/usr/bin/zsh") {
-		return "/usr/bin/zsh"
-	}
-
-	if strings.Contains(string(out), "/bin/zsh") {
-		return "/bin/zsh"
-	}
-
-	if strings.Contains(string(out), "/usr/bin/bash") {
-		return "/usr/bin/bash"
-	}
-
-	if strings.Contains(string(out), "/bin/bash") {
-		return "/bin/bash"
-	}
-
-	shellEnv, shellSet := os.LookupEnv("SHELL")
-
-	if shellSet {
-		return shellEnv
-	}
-
 	return "sh"
 }
 
