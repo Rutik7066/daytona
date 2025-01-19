@@ -11,8 +11,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/UserExistsError/conpty"
-	"github.com/creack/pty"
 	"github.com/daytonaio/daytona/pkg/agent/ssh/config"
 	"github.com/gliderlabs/ssh"
 	"github.com/pkg/sftp"
@@ -103,42 +101,23 @@ func (s *Server) handlePty(session ssh.Session, ptyReq ssh.Pty, winCh <-chan ssh
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SHELL=%s", shell))
 
 	var f io.ReadWriteCloser
-	var err error
 
 	if runtime.GOOS == "windows" {
-		// Use ConPTY for Windows
-		f, err = conpty.Start(shell)
-		if err != nil {
-			log.Errorf("Unable to start ConPTY: %v", err)
-			return
+		output := Start(shell)
+		if output != nil {
+			f = output
 		}
 	} else {
-		// Use creack/pty for Unix-like systems
-		f, err = pty.Start(cmd)
-		if err != nil {
-			log.Errorf("Unable to start PTY: %v", err)
-			return
+		output := Start(cmd)
+		if output != nil {
+			f = output
 		}
 	}
 	defer f.Close()
 
 	go func() {
 		for win := range winCh {
-			if runtime.GOOS == "windows" {
-				// Adjust the ConPTY window size
-				if cpty, ok := f.(*conpty.ConPty); ok {
-					cpty.Resize(win.Width, win.Height)
-				} else {
-					log.Errorf("Unable to resize ConPTY")
-				}
-			} else {
-				// Adjust PTY size for Unix-like systems
-				if file, ok := f.(*os.File); ok {
-					SetPtySize(file, win)
-				} else {
-					log.Errorf("Unable to resize PTY")
-				}
-			}
+			SetPtySize(f, win)
 		}
 	}()
 	go func() {
