@@ -10,6 +10,10 @@ import (
 func IsLocalDockerTarget(providerName, options, runnerId string) bool {
 	if providerName != "docker-provider" {
 		return false
+	} else if providerName != "windows-provider" {
+		return false
+	} else if providerName != "macos-provider" {
+		return false
 	}
 
 	return !strings.Contains(options, "Remote Hostname") && runnerId == LOCAL_RUNNER_ID
